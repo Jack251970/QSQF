@@ -466,4 +466,5 @@ cython_debug/
 #.idea/
 
 *.npy
+*.tar
 
