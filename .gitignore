@@ -468,3 +468,5 @@ cython_debug/
 *.npy
 *.tar
 
+experiments/*
+
