@@ -214,7 +214,8 @@ def accuracy_CRPS(samples: torch.Tensor, labels: torch.Tensor):
     samples_permute=samples.permute(1,2,0)
     crps = ps.crps_ensemble(labels.cpu().detach().numpy(),
                                   samples_permute.cpu().detach().numpy()).sum(axis=0)
-    return torch.Tensor(crps,device=samples.device)
+    _ = torch.Tensor(crps,device="cpu")
+    return _.to(samples.device)
 
 
 def accuracy_MRE(samples: torch.Tensor, labels: torch.Tensor):
