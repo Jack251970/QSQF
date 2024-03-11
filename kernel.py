@@ -31,26 +31,29 @@ def train(model,
     # Train_loader:
     for i, (train_batch, labels_batch) in enumerate(tqdm(train_loader)):  # [256, 108, 7], [256, 108]
         optimizer.zero_grad()
-        batch_size = train_batch.shape[0]  # 256
-        train_batch = train_batch.permute(1, 0, 2). \
-            to(torch.float32).to(dirs.device)  # not scaled [108, 256, 7]
-        labels_batch = labels_batch.permute(1, 0). \
-            to(torch.float32).to(dirs.device)  # not scaled [108, 256]
-        loss = torch.zeros(1, device=dirs.device, requires_grad=True)
-        hidden = model.init_hidden(batch_size).to(train_batch.device)  # [2, 256, 40]
-        cell = model.init_cell(batch_size).to(train_batch.device)  # [2, 256, 40]
 
-        for t in range(params.train_window):
-            func_param, hidden, cell = model(train_batch[t].unsqueeze_(0).clone(), hidden, cell)  # [256, 1], [256, 20]
-            if torch.isnan(hidden).sum() > 0:
-                logger.info('Backward Error! Process Stop!')
-                flag = True
-                return (loss_epoch / params.train_window, flag)
-            loss = loss + loss_fn(func_param, labels_batch[t])
-            if torch.isnan(loss).sum() > 0:
-                logger.info(f'Loss Error at Data={i} Time={t}! Process Stop!')
-                flag = True
-                return (loss_epoch / params.train_window, flag)
+        train_batch = train_batch.to(torch.float32).to(dirs.device)  # not scaled
+        labels_batch = labels_batch.to(torch.float32).to(dirs.device)  # not scaled
+
+        # batch_size = train_batch.shape[0]  # 256
+        # hidden = model.init_hidden(batch_size).to(train_batch.device)  # [2, 256, 40]
+        # cell = model.init_cell(batch_size).to(train_batch.device)  # [2, 256, 40]
+
+        # loss = torch.zeros(1, device=dirs.device, requires_grad=True)
+
+        # for t in range(params.train_window):
+        #     func_param, hidden, cell = model(train_batch[t].unsqueeze_(0).clone(), hidden, cell)  # [256, 1], [256, 20]
+        #     if torch.isnan(hidden).sum() > 0:
+        #         logger.info('Backward Error! Process Stop!')
+        #         flag = True
+        #         return (loss_epoch / params.train_window, flag)
+        #     loss = loss + loss_fn(func_param, labels_batch[t])
+        #     if torch.isnan(loss).sum() > 0:
+        #         logger.info(f'Loss Error at Data={i} Time={t}! Process Stop!')
+        #         flag = True
+        #         return (loss_epoch / params.train_window, flag)
+
+        loss, flag = model(train_batch, labels_batch)
 
         loss.backward()
         optimizer.step()
@@ -75,26 +78,23 @@ def evaluate(model, loss_fn, test_loader, params, dirs, istest=False):
         metrics = utils.init_metrics(params, dirs)
 
         for i, (test_batch, labels) in enumerate(tqdm(test_loader)):
-            test_batch = test_batch.permute(1, 0, 2).to(torch.float32).to(dirs.device)
+            test_batch = test_batch.to(torch.float32).to(dirs.device)
             labels = labels.to(torch.float32).to(dirs.device)
-            batch_size = test_batch.shape[1]
-            hidden = model.init_hidden(batch_size)
-            cell = model.init_cell(batch_size)
 
-            # pred_start长度的数据是已知的，无需考虑，是论文中的conditioning range部分
-            for t in range(params.pred_start):
-                _, hidden, cell = model(test_batch[t].unsqueeze(0), hidden, cell)
+            # batch_size = test_batch.shape[1]
+            # hidden = model.init_hidden(batch_size)
+            # cell = model.init_cell(batch_size)
 
             # save some params of SQF for plot
-            if istest and (i == 0):
-                plot_param, _, _ = model(test_batch[params.pred_start].unsqueeze(0), hidden, cell)
-                save_name = os.path.join(dirs.model_dir, 'sqf_param')
-                with open(save_name, 'wb') as f:
-                    import pickle
-                    pickle.dump(plot_param, f)
-                    pickle.dump(test_batch[params.pred_start], f)
+            # if istest and (i == 0):
+            #     plot_param, _, _ = model(test_batch[params.pred_start].unsqueeze(0), hidden, cell)
+            #     save_name = os.path.join(dirs.model_dir, 'sqf_param')
+            #     with open(save_name, 'wb') as f:
+            #         import pickle
+            #         pickle.dump(plot_param, f)
+            #         pickle.dump(test_batch[params.pred_start], f)
 
-            samples, _, _ = model.predict(test_batch, hidden, cell, sampling=True)
+            samples, _, _ = model(test_batch)
             metrics = utils.update_metrics(metrics, samples, labels, params.pred_start)
 
         summary = utils.final_metrics(metrics)
