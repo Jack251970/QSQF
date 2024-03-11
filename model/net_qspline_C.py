@@ -100,7 +100,7 @@ class Net(nn.Module):
                     # return (loss_epoch / self.train_window, flag)
                     raise ValueError(f'Loss Error! Process Stop!')
 
-                return loss, flag
+            return loss, flag
         else:  # validate or test mode
             # condition range
             test_batch = train_batch  # [108, 256, 7]
