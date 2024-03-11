@@ -37,8 +37,8 @@ def train(model,
         labels_batch = labels_batch.permute(1, 0). \
             to(torch.float32).to(dirs.device)  # not scaled [108, 256]
         loss = torch.zeros(1, device=dirs.device, requires_grad=True)
-        hidden = model.init_hidden(batch_size)  # [2, 256, 40]
-        cell = model.init_cell(batch_size)  # [2, 256, 40]
+        hidden = model.init_hidden(batch_size).to(train_batch.device)  # [2, 256, 40]
+        cell = model.init_cell(batch_size).to(train_batch.device)  # [2, 256, 40]
 
         for t in range(params.train_window):
             func_param, hidden, cell = model(train_batch[t].unsqueeze_(0).clone(), hidden, cell)  # [256, 1], [256, 20]

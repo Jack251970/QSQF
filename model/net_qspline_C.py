@@ -48,11 +48,13 @@ class Net(nn.Module):
             params.lstm_hidden_dim * params.lstm_layers, params.num_spline)
 
         self.beta_0 = nn.Softplus()
-        # softplus to make sure gamma is positive
+        # soft-plus to make sure gamma is positive
         # self.gamma=nn.ReLU()
         self.gamma = nn.Softplus()
 
     def forward(self, x, hidden, cell):  # [1, 256, 7], [2, 256, 40], [2, 256, 40]
+        hidden = hidden.to(x.device)
+        cell = cell.to(x.device)
         _, (hidden, cell) = self.lstm(x, (hidden, cell))  # [2, 256, 40], [2, 256, 40]
         # use h from all three layers to calculate mu and sigma
         hidden_permute = \
@@ -62,17 +64,15 @@ class Net(nn.Module):
         beta_0 = self.beta_0(pre_beta_0)  # [256, 1]
         pre_gamma = self.pre_gamma(hidden_permute)  # [256, 20]
         gamma = self.gamma(pre_gamma)  # [256, 20]
-        return ((beta_0, torch.squeeze(gamma)), hidden, cell)  # [256, 1], [256, 20], [2, 256, 40], [2, 256, 40]
+        return (beta_0, torch.squeeze(gamma)), hidden, cell  # [256, 1], [256, 20], [2, 256, 40], [2, 256, 40]
 
     def init_hidden(self, input_size):
         return torch.zeros(self.params.lstm_layers, input_size,
-                           self.params.lstm_hidden_dim,
-                           device=self.device)
+                           self.params.lstm_hidden_dim)
 
     def init_cell(self, input_size):
         return torch.zeros(self.params.lstm_layers, input_size,
-                           self.params.lstm_hidden_dim,
-                           device=self.device)
+                           self.params.lstm_hidden_dim)
 
     def predict(self, x, hidden, cell, sampling=False):  # [108, 256, 7], [2, 256, 40], [2, 256, 40]
         """
@@ -81,7 +81,7 @@ class Net(nn.Module):
         batch_size = x.shape[1]  # 256
         samples = torch.zeros(self.params.sample_times, batch_size,
                               self.params.pred_steps,
-                              device=self.device)  # [99, 256, 12]，其中长度12是论文中的prediction range部分
+                              device=x.device)  # [99, 256, 12]，其中长度12是论文中的prediction range部分
         for j in range(self.params.sample_times):
             decoder_hidden = hidden
             decoder_cell = cell

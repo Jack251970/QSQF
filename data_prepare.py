@@ -19,17 +19,23 @@ def format_data(y, covars, usage='train', lag=2, window_size=44, data_name='Zone
     num_covars = covars.shape[1]
     ts_len = y.shape[0]
     samples = ts_len - window_size + 1
-    # lag表示滞后时间，在预测t时刻的时候，若lag=3，则会将t-1,t-2,t-3时刻的数据作为输入，放入扩展维度的位置
+    # lag表示滞后时间，在预测t时刻的时候，若lag=3，则会将t-1,t-2,t-3时刻的数据作为输入，放入数据维度的位置
     X = np.zeros((samples, window_size, lag + num_covars),
-                 dtype='float32')
-    label = np.zeros((samples, window_size), dtype='float32')
+                 dtype='float32')  # [samples, window_size(seq_len+pred_len), dimension(lag+num_covars)]
+    label = np.zeros((samples, window_size), dtype='float32')  # [samples, window_size(seq_len+pred_len)]
     for i in range(samples):
         # window_start=i
         window_end = i + window_size
+
+        # 放入滞后变量到对应维度
         for j in range(lag):
             # add different z_(t-i)
             X[i, (j + 1):, j] = y[i:window_end - j - 1]
+
+        # 放入相关变量到对应维度
         X[i, :, lag:] = covars[i:window_end, :]
+
+        # 放入标签
         label[i, :] = y[i:window_end]
 
     save_path = os.path.join('data', data_name)
@@ -70,7 +76,7 @@ def prepare_data(zone, lag=1, ids_covars=[1, 2, 3, 4], window_size=192):
            '2013-04-27 01:00:00', '2013-08-01 00:00:00',
            '2013-07-28 01:00:00', '2014-01-01 00:00:00']
 
-    # 生成相关变量，这个是协方差
+    # 生成相关变量，按照均值方差进行归一化
     covars = gen_covars(df, ids_covars, df[seg[0]:seg[1]].shape[0])
 
     y_train = df[seg[0]:seg[1]]['TARGETVAR'].values
