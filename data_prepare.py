@@ -64,12 +64,13 @@ def prepare_data(zone, lag=1, ids_covars=[1, 2, 3, 4], window_size=192):
     data_path = os.path.join('data', zone, zone + '.csv')
 
     df = pd.read_csv(data_path, sep=',', index_col=0, parse_dates=True)
+
     # 填充缺失值
-    df.fillna(0, inplace=True)
+    # df.fillna(0, inplace=True)
 
     # 处理极端数值
-    df.loc[df.TARGETVAR >= 1, 'TARGETVAR'] = 0.9999
-    df.loc[df.TARGETVAR <= 0, 'TARGETVAR'] = 0.0001
+    # df.loc[df.TARGETVAR >= 1, 'TARGETVAR'] = 0.9999
+    # df.loc[df.TARGETVAR <= 0, 'TARGETVAR'] = 0.0001
 
     # train test split
     seg = ['2012-01-01 01:00:00', '2013-05-01 00:00:00',
@@ -92,5 +93,14 @@ def prepare_data(zone, lag=1, ids_covars=[1, 2, 3, 4], window_size=192):
                 lag=lag, window_size=window_size, data_name=zone)
 
 
+def output_fillna_data(zone):
+    data_path = os.path.join('data', zone, zone + '.csv')
+    df = pd.read_csv(data_path, sep=',', index_col=0, parse_dates=True)
+    df.fillna(0, inplace=True)
+    df.to_csv(data_path)
+
+
 if __name__ == '__main__':
+    for i in range(10):
+        output_fillna_data('Zone' + str(i + 1))
     prepare_data('Zone1', lag=3, ids_covars=[1, 2, 3, 4], window_size=96 + 12)

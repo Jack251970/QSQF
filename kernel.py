@@ -94,7 +94,7 @@ def evaluate(model, loss_fn, test_loader, params, dirs, istest=False):
             #         pickle.dump(plot_param, f)
             #         pickle.dump(test_batch[params.pred_start], f)
 
-            samples, _, _ = model(test_batch)
+            samples, sample_mu, sample_std = model(test_batch)
             metrics = utils.update_metrics(metrics, samples, labels, params.pred_start)
 
         summary = utils.final_metrics(metrics)
@@ -113,6 +113,8 @@ def evaluate(model, loss_fn, test_loader, params, dirs, istest=False):
         ss_metric[f'CRPS_{i}'] = crps
     for i, mre in enumerate(summary['mre'].mean(dim=0)):
         ss_metric[f'mre_{i}'] = mre
+
+    # get metrics
     return ss_metric
 
 
@@ -134,12 +136,15 @@ def train_and_evaluate(model,
         params: (Params) hyperparameters
         args:
     '''
-    best_test_CRPS = (int(0), float('inf'))
     train_len = len(train_loader)
+
+    # criteria
+    best_test_CRPS = (int(0), float('inf'))
     CRPS_summary = np.zeros(params.num_epochs)
     PINAW_summary = np.zeros(params.num_epochs)
     rc_summary = np.zeros(params.num_epochs)
     loss_summary = np.zeros((train_len * params.num_epochs))
+
     # reload weights from restore_file if specified
     if restore_file is not None:
         restore_path = os.path.join(dirs.model_dir, 'epochs', 'epoch_' + str(restore_file) + '.pth.tar')
@@ -150,8 +155,11 @@ def train_and_evaluate(model,
         CRPS_summary = checkpoint['CRPS_summary']
         rc_summary = checkpoint['rc_summary']
         loss_summary = checkpoint['loss_summary']
+
     logger.info('Begin training and evaluation')
+
     for epoch in range(params.num_epochs):
+
         if restore_file is not None:
             if epoch < current_epoch:
                 continue
