@@ -77,7 +77,7 @@ def evaluate(model, loss_fn, test_loader, params, dirs, istest=False):
         summary = {}
         metrics = utils.init_metrics(params, dirs)
 
-        for i, (test_batch, labels) in enumerate(tqdm(test_loader)):
+        for i, (test_batch, labels) in enumerate(tqdm(test_loader)):  # [256, 108, 7], [256, 108]
             test_batch = test_batch.to(torch.float32).to(dirs.device)
             labels = labels.to(torch.float32).to(dirs.device)
 
@@ -94,7 +94,7 @@ def evaluate(model, loss_fn, test_loader, params, dirs, istest=False):
             #         pickle.dump(plot_param, f)
             #         pickle.dump(test_batch[params.pred_start], f)
 
-            samples, sample_mu, sample_std = model(test_batch)
+            samples, sample_mu, sample_std = model(test_batch)  # [99, 256, 12], [256, 12], [256, 12]
             metrics = utils.update_metrics(metrics, samples, labels, params.pred_start)
 
         summary = utils.final_metrics(metrics)
