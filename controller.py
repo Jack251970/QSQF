@@ -138,7 +138,7 @@ def run(params, dirs, seed=None, restore_file=None):
 if __name__ == '__main__':
     args = parser.parse_args()
     args.model_dir = "./experiments/param_search/configuration"
-    params_path = os.path.join(args.model_dir, 'solar_params.json')
+    params_path = os.path.join(args.model_dir, 'params.json')
     dirs_path = os.path.join(args.model_dir, 'dirs.json')
     params = utils.Params(params_path)
     dirs = utils.Params(dirs_path)
