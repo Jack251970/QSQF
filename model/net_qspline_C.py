@@ -155,6 +155,9 @@ class Net(nn.Module):
             return samples, sample_mu, sample_std
 
     def plot(self, data, label, probability_range=0.95):  # [15632, 16], [15632, 1]
+        if self.device != "cpu":
+            print('Use cpu for faster speed!')
+
         cdf_high = 1 - (1 - probability_range) / 2
         cdf_low = (1 - probability_range) / 2
 
@@ -236,10 +239,10 @@ class Net(nn.Module):
         sample_mu = torch.mean(samples, dim=0)  # [1, 15616]
 
         # move to cpu and covert to numpy for plotting
-        sample_mu = sample_mu.squeeze().detach().cpu().numpy()  # [15632]
-        labels_batch = labels_batch.squeeze().detach().cpu().numpy()  # [15632]
-        samples_high = samples_high.squeeze().detach().cpu().numpy()  # [15632]
-        samples_low = samples_low.squeeze().detach().cpu().numpy()  # [15632]
+        sample_mu = sample_mu.squeeze().cpu().numpy()  # [15632]
+        labels_batch = labels_batch.squeeze().cpu().numpy()  # [15632]
+        samples_high = samples_high.squeeze().cpu().numpy()  # [15632]
+        samples_low = samples_low.squeeze().cpu().numpy()  # [15632]
 
         # sample_mu is predicted value
         # labels_batch is true value
