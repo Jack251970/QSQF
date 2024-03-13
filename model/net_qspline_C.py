@@ -54,7 +54,7 @@ class Net(nn.Module):
 
         self.train_window = self.params.pred_steps + self.params.pred_start
 
-    def forward(self, train_batch, labels_batch=None):  # [256, 108, 7], [256, 108,]
+    def forward(self, train_batch, labels_batch=None):  # [256, 108, 7], [256, 108]
         batch_size = train_batch.shape[0]  # 256
         device = train_batch.device
 
@@ -153,6 +153,105 @@ class Net(nn.Module):
             sample_mu = torch.mean(samples, dim=0)  # mean or median ? # [256, 12]
             sample_std = samples.std(dim=0)  # [256, 12]
             return samples, sample_mu, sample_std
+
+    def plot(self, data, label, probability_range=0.95):  # [15632, 16], [15632, 1]
+        cdf_high = 1 - (1 - probability_range) / 2
+        cdf_low = (1 - probability_range) / 2
+
+        total_length = data.shape[0]  # 15632
+        batch_size = 1
+        device = data.device
+
+        test_batch = data.unsqueeze(0)  # [1, 15632, 16]
+        labels_batch = label.unsqueeze(0).squeeze(-1)  # [1, 15632]
+
+        test_batch = test_batch.permute(1, 0, 2)  # [15632, 1, 16]
+        if labels_batch is not None:
+            labels_batch = labels_batch.permute(1, 0)  # [15632, 1]
+
+        hidden = torch.zeros(self.params.lstm_layers, batch_size, self.params.lstm_hidden_dim,
+                             device=device)  # [2, 256, 40]
+        cell = torch.zeros(self.params.lstm_layers, batch_size, self.params.lstm_hidden_dim,
+                           device=device)  # [2, 256, 40]
+
+        # condition range: init hidden & cell value
+        for t in range(self.params.pred_start):
+            x = test_batch[t].unsqueeze(0)  # [1, 1, 16]
+            _, (hidden, cell) = self.lstm(x, (hidden, cell))  # [2, 256, 40], [2, 256, 40]
+
+        # prediction range : start prediction
+        pred_steps = total_length - self.params.pred_start
+        samples_high = torch.zeros(1, batch_size, pred_steps, device=device)  # [1, 1, 15616]
+        samples_low = torch.zeros(1, batch_size, pred_steps, device=device)  # [1, 1, 15616]
+        samples = torch.zeros(self.params.sample_times, batch_size, pred_steps, device=device)  # [99, 1, 15616]
+        for j in range(self.params.sample_times + 2):
+            for t in range(pred_steps):
+                x = test_batch[self.params.pred_start + t].unsqueeze(0)  # [1, 1, 16]
+
+                _, (hidden, cell) = self.lstm(x, (hidden, cell))  # [2, 1, 40], [2, 1, 40]
+                # use h from all three layers to calculate mu and sigma
+                hidden_permute = hidden.permute(1, 2, 0).contiguous().view(hidden.shape[1], -1)  # [1, 80]
+
+                # Plan C:
+                pre_beta_0 = self.pre_beta_0(hidden_permute)  # [1, 1]
+                beta_0 = self.beta_0(pre_beta_0)  # [1, 1]
+                pre_gamma = self.pre_gamma(hidden_permute)  # [1, 20]
+                gamma = self.gamma(pre_gamma)  # [1, 20]
+
+                # pred_cdf is a uniform distribution
+                if j == 0:  # high
+                    pred_cdf = torch.Tensor([cdf_high]).to(device)
+                elif j == 1:  # low
+                    pred_cdf = torch.Tensor([cdf_low]).to(device)
+                else:  # random
+                    uniform = torch.distributions.uniform.Uniform(
+                        torch.tensor([0.0], device=device),
+                        torch.tensor([1.0], device=device))
+                    pred_cdf = uniform.sample([batch_size])  # [1, 1]
+
+                sigma = torch.full_like(gamma, 1.0 / gamma.shape[1])  # [1, 20]
+                beta = pad(gamma, (1, 0))[:, :-1]
+                beta[:, 0] = beta_0[:, 0]
+                beta = (gamma - beta) / (2 * sigma)
+                beta = beta - pad(beta, (1, 0))[:, :-1]
+                beta[:, -1] = gamma[:, -1] - beta[:, :-1].sum(dim=1)  # [1, 20]
+
+                ksi = pad(torch.cumsum(sigma, dim=1), (1, 0))[:, :-1]  # [1, 20]
+                indices = ksi < pred_cdf  # [16, 20]
+                pred = (beta_0 * pred_cdf).sum(dim=1)  # [1,]
+                pred = pred + ((pred_cdf - ksi).pow(2) * beta * indices).sum(dim=1)  # [1, 20]
+
+                if j == 0:
+                    samples_high[j, :, t] = pred
+                elif j == 1:
+                    samples_low[j, :, t] = pred
+                else:
+                    samples[j, :, t] = pred
+
+                # predict value at t-1 is as a covars for t,t+1,...,t+lag
+                for lag in range(self.params.lag):
+                    if t < pred_steps - lag - 1:
+                        test_batch[self.params.pred_start + t + 1, :, 0] = pred
+
+        sample_mu = torch.mean(samples, dim=0)  # [1, 15616]
+
+        # move to cpu and covert to numpy for plotting
+        sample_mu = sample_mu.squeeze().detach().cpu().numpy()  # [15632]
+        labels_batch = labels_batch.squeeze().detach().cpu().numpy()  # [15632]
+        samples_high = samples_high.squeeze().detach().cpu().numpy()  # [15632]
+        samples_low = samples_low.squeeze().detach().cpu().numpy()  # [15632]
+
+        # sample_mu is predicted value
+        # labels_batch is true value
+        # samples_high is high-probability value
+        # samples_low is low-probability value
+        from matplotlib import pyplot as plt
+
+        plt.plot(sample_mu, label='Predicted', color='red')
+        plt.plot(labels_batch, label='True', color='blue')
+        plt.fill_between(range(total_length), samples_high.squeeze(), samples_low.squeeze(), color='gray', alpha=0.5)
+        plt.legend()
+        plt.show()
 
 
 def loss_fn(func_param, labels: Variable):  # {[256, 1], [256, 20]}, [256,]
