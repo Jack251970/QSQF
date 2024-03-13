@@ -14,6 +14,6 @@
     "sample_times": 99,
     "num_spline": 20,
     "max_delay_epochs": 30,
-    "line": "Lspline",
+    "line": "QCDspline",
     "dataset": "wind"
 }
