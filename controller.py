@@ -115,6 +115,7 @@ def run(params, dirs, seed=None, restore_file=None):
     logging.shutdown()
 
     model.plot(test_set)
+    return
 
     load_dir = os.path.join(dirs.model_save_dir, 'best.pth.tar')
     if not os.path.exists(load_dir):

@@ -4,6 +4,7 @@ Created on Wed Oct 21 19:52:22 2020
 
 @author: 18096
 """
+import numpy as np
 from tqdm import tqdm
 
 '''Defines the neural network, loss function and metrics'''
@@ -256,10 +257,17 @@ class Net(nn.Module):
         samples_high = samples_high.squeeze()  # [15632]
         samples_low = samples_low.squeeze()  # [15632]
 
-        sample_mu = sample_mu.detach().cpu().numpy()  # [15632]
-        labels_batch = labels_batch.detach().cpu().numpy()  # [15632]
-        samples_high = samples_high.detach().cpu().numpy()  # [15632]
-        samples_low = samples_low.detach().cpu().numpy()  # [15632]
+        sample_mu = sample_mu.unsqueeze(0).detach().cpu().numpy()  # [15632]
+        labels_batch = labels_batch.unsqueeze(0).detach().cpu().numpy()  # [15632]
+        samples_high = samples_high.unsqueeze(0).detach().cpu().numpy()  # [15632]
+        samples_low = samples_low.unsqueeze(0).detach().cpu().numpy()  # [15632]
+
+        # [sample, feature]
+        # shape = sample_mu.shape
+        # sample_mu = data_loader.inverse_transform(sample_mu)
+        # labels_batch = data_loader.inverse_transform(labels_batch)
+        # samples_high = data_loader.inverse_transform(samples_high)
+        # samples_low = data_loader.inverse_transform(samples_low)
 
         # sample_mu is predicted value
         # labels_batch is true value
@@ -267,9 +275,9 @@ class Net(nn.Module):
         # samples_low is low-probability value
         from matplotlib import pyplot as plt
 
-        plt.plot(sample_mu, label='Predicted Value', color='red')
-        plt.plot(labels_batch, label='True Value', color='blue')
-        plt.fill_between(range(pred_steps), samples_high, samples_low, color='gray', alpha=0.5)
+        plt.plot(sample_mu.squeeze(), label='Predicted Value', color='red')
+        plt.plot(labels_batch.squeeze(), label='True Value', color='blue')
+        plt.fill_between(range(pred_steps), samples_high.squeeze(), samples_low.squeeze(), color='gray', alpha=0.5)
         plt.title('Prediction')
         plt.legend()
         plt.savefig('prediction.png')
