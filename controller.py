@@ -12,6 +12,8 @@ import logging
 import argparse
 import torch.optim as optim
 from torch.utils.data import DataLoader
+
+from data_provider.data_loader import Dataset_Custom
 from dataloader import TrainDataset, TestDataset, ValiDataset
 from torch.utils.data.sampler import RandomSampler
 
@@ -23,6 +25,7 @@ warnings.filterwarnings('ignore')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model-dir', default='base_model', help='Dir of model')
+parser.add_argument('--dataset', default='wind', help='Type of dataset')
 
 
 def run(params, dirs, seed=None, restore_file=None):
@@ -45,15 +48,56 @@ def run(params, dirs, seed=None, restore_file=None):
 
     logger = logging.getLogger('DeepAR.Data')
     logger.info('Loading the datasets...')
-    train_set = TrainDataset(dirs.data_dir, dirs.dataset)
-    vali_set = ValiDataset(dirs.data_dir, dirs.dataset)
-    test_set = TestDataset(dirs.data_dir, dirs.dataset)
-    train_loader = DataLoader(train_set, batch_size=params.batch_size, pin_memory=False,
-                              num_workers=4)
-    vali_loader = DataLoader(vali_set, batch_size=params.batch_size, pin_memory=False,
-                             sampler=RandomSampler(vali_set), num_workers=4)
-    test_loader = DataLoader(test_set, batch_size=params.batch_size, pin_memory=False,
-                             sampler=RandomSampler(test_set), num_workers=4)
+    if params.dataset == 'wind':
+        train_set = TrainDataset(dirs.data_dir, dirs.dataset)
+        vali_set = ValiDataset(dirs.data_dir, dirs.dataset)
+        test_set = TestDataset(dirs.data_dir, dirs.dataset)
+        train_loader = DataLoader(train_set, batch_size=params.batch_size, pin_memory=False,
+                                  num_workers=4)
+        vali_loader = DataLoader(vali_set, batch_size=params.batch_size, pin_memory=False,
+                                 sampler=RandomSampler(vali_set), num_workers=4)
+        test_loader = DataLoader(test_set, batch_size=params.batch_size, pin_memory=False,
+                                 sampler=RandomSampler(test_set), num_workers=4)
+    elif params.dataset == 'solar':
+        train_set = Dataset_Custom(
+            root_path='./data/pvod/',
+            data_path='station00.csv',
+            flag='train',
+            size=[params.pred_start, 0, params.pred_steps],
+            features='MS',
+            target='power',
+            timeenc=0,
+            freq='h',
+            lag=params.lag,
+        )
+        vali_set = Dataset_Custom(
+            root_path='./data/pvod/',
+            data_path='station00.csv',
+            flag='val',
+            size=[params.pred_start, 0, params.pred_steps],
+            features='MS',
+            target='power',
+            timeenc=0,
+            freq='h',
+            lag=params.lag,
+        )
+        test_set = Dataset_Custom(
+            root_path='./data/pvod/',
+            data_path='station00.csv',
+            flag='test',
+            size=[params.pred_start, 0, params.pred_steps],
+            features='MS',
+            target='power',
+            timeenc=0,
+            freq='h',
+            lag=params.lag,
+        )
+        train_loader = DataLoader(train_set, batch_size=params.batch_size, pin_memory=False,
+                                  num_workers=4)
+        vali_loader = DataLoader(vali_set, batch_size=params.batch_size, pin_memory=False,
+                                 sampler=RandomSampler(vali_set), num_workers=4)
+        test_loader = DataLoader(test_set, batch_size=params.batch_size, pin_memory=False,
+                                 sampler=RandomSampler(test_set), num_workers=4)
     logger.info('Data loading complete.')
     logger.info('###############################################\n')
 
@@ -82,7 +126,7 @@ def run(params, dirs, seed=None, restore_file=None):
 if __name__ == '__main__':
     args = parser.parse_args()
     args.model_dir = "./experiments/param_search/configuration"
-    params_path = os.path.join(args.model_dir, 'params.json')
+    params_path = os.path.join(args.model_dir, 'solar_params.json')
     dirs_path = os.path.join(args.model_dir, 'dirs.json')
     params = utils.Params(params_path)
     dirs = utils.Params(dirs_path)
