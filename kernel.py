@@ -72,6 +72,7 @@ def evaluate(model, loss_fn, test_loader, params, dirs, istest=False):
         params: (Params) hyperparameters
     '''
     logger = logging.getLogger('DeepAR.Eval')
+
     model.eval()
     with torch.no_grad():
         summary = {}
@@ -165,12 +166,16 @@ def train_and_evaluate(model,
                 continue
         logger.info('----------------------------------------------\n')
         logger.info('Epoch {}/{}'.format(epoch + 1, params.num_epochs))
+
         lr = optimizer.param_groups[0]['lr']
+
         logger.info('learning rate is: ' + str(lr))
+
         loss, flag = train(model, optimizer, loss_fn, train_loader, params, dirs, epoch)
         loss_summary[epoch * train_len:(epoch + 1) * train_len] = loss
         if flag:
             break
+
         test_metrics = evaluate(model, loss_fn, test_loader, params, dirs)
         CRPS_summary[epoch] = test_metrics['CRPS_Mean']
         PINAW_summary[epoch] = test_metrics['pinaw']

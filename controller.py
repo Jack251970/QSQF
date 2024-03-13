@@ -34,8 +34,10 @@ def run(params, dirs, seed=None, restore_file=None):
         utils.seed(seed)
     utils.set_logger(os.path.join(dirs.model_dir, 'train.log'))
     logger = logging.getLogger('DeepAR.Train')
+
     # check cuda is avaliable or not
     use_cuda = torch.cuda.is_available()
+
     # Set random seeds for reproducible experiments if necessary
     if use_cuda:
         dirs.device = torch.device('cuda:0')
@@ -98,6 +100,10 @@ def run(params, dirs, seed=None, restore_file=None):
                                  sampler=RandomSampler(vali_set), num_workers=4)
         test_loader = DataLoader(test_set, batch_size=params.batch_size, pin_memory=False,
                                  sampler=RandomSampler(test_set), num_workers=4)
+        print(len(train_set))
+        print(len(vali_set))
+        print(len(test_set))
+
     logger.info('Data loading complete.')
     logger.info('###############################################\n')
 
@@ -106,16 +112,17 @@ def run(params, dirs, seed=None, restore_file=None):
     logger.info('###############################################\n')
 
     optimizer = optim.Adam(model.parameters(), lr=params.lr)
+
     # fetch loss function
     loss_fn = net.loss_fn
+
     # Train the model
     logger.info('Starting training for {} epoch(s)'.format(params.num_epochs))
     train_and_evaluate(model, train_loader, vali_loader, optimizer, loss_fn, params, dirs, restore_file)
     logger.handlers.clear()
     logging.shutdown()
 
-    model.plot(test_set)
-
+    # Evaluate the model
     load_dir = os.path.join(dirs.model_save_dir, 'best.pth.tar')
     if not os.path.exists(load_dir):
         return
@@ -123,6 +130,9 @@ def run(params, dirs, seed=None, restore_file=None):
     out = evaluate(model, loss_fn, test_loader, params, dirs, istest=True)
     test_json_path = os.path.join(dirs.model_dir, 'test_results.json')
     utils.save_dict_to_json(out, test_json_path)
+
+    # Plot figures
+    model.plot(test_set)
 
 
 if __name__ == '__main__':
