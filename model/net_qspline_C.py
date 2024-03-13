@@ -250,9 +250,10 @@ class Net(nn.Module):
         # samples_low is low-probability value
         from matplotlib import pyplot as plt
 
-        plt.plot(sample_mu, label='Predicted', color='red')
-        plt.plot(labels_batch, label='True', color='blue')
-        plt.fill_between(range(total_length), samples_high.squeeze(), samples_low.squeeze(), color='gray', alpha=0.5)
+        plt.plot(sample_mu, label='Predicted Value', color='red')
+        plt.plot(labels_batch, label='True Value', color='blue')
+        plt.fill_between(range(pred_steps), samples_high, samples_low, color='gray', alpha=0.5)
+        plt.title('Prediction')
         plt.legend()
         plt.show()
 
