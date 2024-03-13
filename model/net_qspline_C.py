@@ -4,6 +4,7 @@ Created on Wed Oct 21 19:52:22 2020
 
 @author: 18096
 """
+from tqdm import tqdm
 
 '''Defines the neural network, loss function and metrics'''
 
@@ -154,13 +155,16 @@ class Net(nn.Module):
             sample_std = samples.std(dim=0)  # [256, 12]
             return samples, sample_mu, sample_std
 
-    def plot(self, data_loader, probability_range=0.95):
+    def plot(self, data_loader, sample=False, probability_range=0.95):
         if self.device != "cpu":
             print('Use cpu for faster speed!')
 
         all_data = data_loader.get_all_data()  # [15632, 17]
-        data = all_data[:, :-1].to(self.device)  # [15632, 16]
-        label = all_data[:, -1].to(self.device)  # [15632, 1]
+        data = all_data[:, :-1]  # [15632, 16]
+        label = all_data[:, -1]  # [15632, 1]
+
+        data = torch.Tensor(data).to(self.device)
+        label = torch.Tensor(label).to(self.device)
 
         cdf_high = 1 - (1 - probability_range) / 2
         cdf_low = (1 - probability_range) / 2
@@ -168,6 +172,7 @@ class Net(nn.Module):
         total_length = data.shape[0]  # 15632
         batch_size = 1
         device = self.device
+        sample_times = self.params.sample_times if sample else 1
 
         test_batch = data.unsqueeze(0)  # [1, 15632, 16]
         labels_batch = label.unsqueeze(0).squeeze(-1)  # [1, 15632]
@@ -176,10 +181,10 @@ class Net(nn.Module):
         if labels_batch is not None:
             labels_batch = labels_batch.permute(1, 0)  # [15632, 1]
 
-        hidden = torch.zeros(self.params.lstm_layers, batch_size, self.params.lstm_hidden_dim,
-                             device=device)  # [2, 256, 40]
-        cell = torch.zeros(self.params.lstm_layers, batch_size, self.params.lstm_hidden_dim,
-                           device=device)  # [2, 256, 40]
+        hidden = torch.zeros(self.params.lstm_layers, batch_size, self.params.lstm_hidden_dim, device=device,
+                             requires_grad=False)  # [2, 256, 40]
+        cell = torch.zeros(self.params.lstm_layers, batch_size, self.params.lstm_hidden_dim, device=device,
+                           requires_grad=False)  # [2, 256, 40]
 
         # condition range: init hidden & cell value
         for t in range(self.params.pred_start):
@@ -188,10 +193,10 @@ class Net(nn.Module):
 
         # prediction range : start prediction
         pred_steps = total_length - self.params.pred_start
-        samples_high = torch.zeros(1, batch_size, pred_steps, device=device)  # [1, 1, 15616]
-        samples_low = torch.zeros(1, batch_size, pred_steps, device=device)  # [1, 1, 15616]
-        samples = torch.zeros(self.params.sample_times, batch_size, pred_steps, device=device)  # [99, 1, 15616]
-        for j in range(self.params.sample_times + 2):
+        samples_high = torch.zeros(1, batch_size, pred_steps, device=device, requires_grad=False)  # [1, 1, 15616]
+        samples_low = torch.zeros(1, batch_size, pred_steps, device=device, requires_grad=False)  # [1, 1, 15616]
+        samples = torch.zeros(sample_times, batch_size, pred_steps, device=device, requires_grad=False)  # [99, 1, 15616]
+        for j in tqdm(range(sample_times + 2)):
             for t in range(pred_steps):
                 x = test_batch[self.params.pred_start + t].unsqueeze(0)  # [1, 1, 16]
 
@@ -210,11 +215,14 @@ class Net(nn.Module):
                     pred_cdf = torch.Tensor([cdf_high]).to(device)
                 elif j == 1:  # low
                     pred_cdf = torch.Tensor([cdf_low]).to(device)
-                else:  # random
-                    uniform = torch.distributions.uniform.Uniform(
-                        torch.tensor([0.0], device=device),
-                        torch.tensor([1.0], device=device))
-                    pred_cdf = uniform.sample([batch_size])  # [1, 1]
+                else:
+                    if sample:  # random
+                        uniform = torch.distributions.uniform.Uniform(
+                            torch.tensor([0.0], device=device),
+                            torch.tensor([1.0], device=device))
+                        pred_cdf = uniform.sample([batch_size])  # [1, 1]
+                    else:
+                        pred_cdf = torch.Tensor([0.5]).to(device)
 
                 sigma = torch.full_like(gamma, 1.0 / gamma.shape[1])  # [1, 20]
                 beta = pad(gamma, (1, 0))[:, :-1]
@@ -229,11 +237,11 @@ class Net(nn.Module):
                 pred = pred + ((pred_cdf - ksi).pow(2) * beta * indices).sum(dim=1)  # [1, 20]
 
                 if j == 0:
-                    samples_high[j, :, t] = pred
+                    samples_high[0, :, t] = pred
                 elif j == 1:
-                    samples_low[j, :, t] = pred
+                    samples_low[0, :, t] = pred
                 else:
-                    samples[j, :, t] = pred
+                    samples[j - 2, :, t] = pred
 
                 # predict value at t-1 is as a covars for t,t+1,...,t+lag
                 for lag in range(self.params.lag):
@@ -243,10 +251,15 @@ class Net(nn.Module):
         sample_mu = torch.mean(samples, dim=0)  # [1, 15616]
 
         # move to cpu and covert to numpy for plotting
-        sample_mu = sample_mu.squeeze().cpu().numpy()  # [15632]
-        labels_batch = labels_batch.squeeze().cpu().numpy()  # [15632]
-        samples_high = samples_high.squeeze().cpu().numpy()  # [15632]
-        samples_low = samples_low.squeeze().cpu().numpy()  # [15632]
+        sample_mu = sample_mu.squeeze()  # [15632]
+        labels_batch = labels_batch.squeeze()  # [15632]
+        samples_high = samples_high.squeeze()  # [15632]
+        samples_low = samples_low.squeeze()  # [15632]
+
+        sample_mu = sample_mu.detach().cpu().numpy()  # [15632]
+        labels_batch = labels_batch.detach().cpu().numpy()  # [15632]
+        samples_high = samples_high.detach().cpu().numpy()  # [15632]
+        samples_low = samples_low.detach().cpu().numpy()  # [15632]
 
         # sample_mu is predicted value
         # labels_batch is true value
@@ -259,7 +272,8 @@ class Net(nn.Module):
         plt.fill_between(range(pred_steps), samples_high, samples_low, color='gray', alpha=0.5)
         plt.title('Prediction')
         plt.legend()
-        plt.show()
+        plt.savefig('prediction.png')
+        # plt.show()
 
 
 def loss_fn(func_param, labels: Variable):  # {[256, 1], [256, 20]}, [256,]

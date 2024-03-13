@@ -114,6 +114,8 @@ def run(params, dirs, seed=None, restore_file=None):
     logger.handlers.clear()
     logging.shutdown()
 
+    model.plot(test_set)
+
     load_dir = os.path.join(dirs.model_save_dir, 'best.pth.tar')
     if not os.path.exists(load_dir):
         return
@@ -132,7 +134,6 @@ if __name__ == '__main__':
     dirs = utils.Params(dirs_path)
     dirs.data_dir = "./data/Zone1"
     dirs.model_save_dir = "models"
-    params.line = "QCDspline"
     if params.line == 'QAspline':
         import model.net_qspline_A as net
     elif params.line == 'QBspline':
