@@ -162,7 +162,7 @@ class Net(nn.Module):
 
         all_data = data_loader.get_all_data()  # [15632, 17]
         data = all_data[:, :-1]  # [15632, 16]
-        label = all_data[:, -1]  # [15632, 1]
+        label = all_data[:, -1]  # [15632]
 
         data = torch.Tensor(data).to(self.device)
         label = torch.Tensor(label).to(self.device)
@@ -170,13 +170,15 @@ class Net(nn.Module):
         cdf_high = 1 - (1 - probability_range) / 2
         cdf_low = (1 - probability_range) / 2
 
-        total_length = data.shape[0]  # 15632
+        total_length = all_data.shape[0]  # 15632
+        dimension = all_data.shape[1] - self.params.lag  # 14
         batch_size = 1
+        pred_steps = total_length - self.params.pred_start
         device = self.device
         sample_times = self.params.sample_times if sample else 1
 
         test_batch = data.unsqueeze(0)  # [1, 15632, 16]
-        labels_batch = label.unsqueeze(0).squeeze(-1)  # [1, 15632]
+        labels_batch = label.unsqueeze(0)  # [1, 15632]
 
         test_batch = test_batch.permute(1, 0, 2)  # [15632, 1, 16]
         if labels_batch is not None:
@@ -193,7 +195,6 @@ class Net(nn.Module):
             _, (hidden, cell) = self.lstm(x, (hidden, cell))  # [2, 256, 40], [2, 256, 40]
 
         # prediction range : start prediction
-        pred_steps = total_length - self.params.pred_start
         samples_high = torch.zeros(1, batch_size, pred_steps, device=device, requires_grad=False)  # [1, 1, 15616]
         samples_low = torch.zeros(1, batch_size, pred_steps, device=device, requires_grad=False)  # [1, 1, 15616]
         samples = torch.zeros(sample_times, batch_size, pred_steps, device=device, requires_grad=False)  # [99, 1, 15616]
@@ -249,25 +250,46 @@ class Net(nn.Module):
                     if t < pred_steps - lag - 1:
                         test_batch[self.params.pred_start + t + 1, :, 0] = pred
 
+        labels_batch = labels_batch[self.params.pred_start:]
         sample_mu = torch.mean(samples, dim=0)  # [1, 15616]
 
         # move to cpu and covert to numpy for plotting
-        sample_mu = sample_mu.squeeze()  # [15632]
-        labels_batch = labels_batch.squeeze()  # [15632]
-        samples_high = samples_high.squeeze()  # [15632]
-        samples_low = samples_low.squeeze()  # [15632]
+        sample_mu = sample_mu.squeeze()  # [15616]
+        labels_batch = labels_batch.squeeze()  # [15616]
+        samples_high = samples_high.squeeze()  # [15616]
+        samples_low = samples_low.squeeze()  # [15616]
 
-        sample_mu = sample_mu.unsqueeze(0).detach().cpu().numpy()  # [15632]
-        labels_batch = labels_batch.unsqueeze(0).detach().cpu().numpy()  # [15632]
-        samples_high = samples_high.unsqueeze(0).detach().cpu().numpy()  # [15632]
-        samples_low = samples_low.unsqueeze(0).detach().cpu().numpy()  # [15632]
+        sample_mu = sample_mu.unsqueeze(0).detach().cpu().numpy()  # [15616]
+        labels_batch = labels_batch.unsqueeze(0).detach().cpu().numpy()  # [15616]
+        samples_high = samples_high.unsqueeze(0).detach().cpu().numpy()  # [15616]
+        samples_low = samples_low.unsqueeze(0).detach().cpu().numpy()  # [15616]
+
+        # convert to shape: (sample, feature)
+        new_shape = (pred_steps, dimension)
+        _ = np.zeros(new_shape)
+        _[:, -1] = sample_mu
+        sample_mu = _
+        _ = np.zeros(new_shape)
+        _[:, -1] = labels_batch
+        labels_batch = _
+        _ = np.zeros(new_shape)
+        _[:, -1] = samples_high
+        samples_high = _
+        _ = np.zeros(new_shape)
+        _[:, -1] = samples_low
+        samples_low = _
 
         # [sample, feature]
         # shape = sample_mu.shape
-        # sample_mu = data_loader.inverse_transform(sample_mu)
-        # labels_batch = data_loader.inverse_transform(labels_batch)
-        # samples_high = data_loader.inverse_transform(samples_high)
-        # samples_low = data_loader.inverse_transform(samples_low)
+        sample_mu = data_loader.inverse_transform(sample_mu)
+        labels_batch = data_loader.inverse_transform(labels_batch)
+        samples_high = data_loader.inverse_transform(samples_high)
+        samples_low = data_loader.inverse_transform(samples_low)
+
+        sample_mu = sample_mu[:, -1]
+        labels_batch = labels_batch[:, -1]
+        samples_high = samples_high[:, -1]
+        samples_low = samples_low[:, -1]
 
         # sample_mu is predicted value
         # labels_batch is true value
