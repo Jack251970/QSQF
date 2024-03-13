@@ -383,6 +383,9 @@ class Dataset_Custom(Dataset):
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
 
+    def get_all_data(self):
+        return self.data_x
+
 
 # noinspection DuplicatedCode
 class Dataset_M4(Dataset):

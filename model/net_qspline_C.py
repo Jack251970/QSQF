@@ -154,16 +154,20 @@ class Net(nn.Module):
             sample_std = samples.std(dim=0)  # [256, 12]
             return samples, sample_mu, sample_std
 
-    def plot(self, data, label, probability_range=0.95):  # [15632, 16], [15632, 1]
+    def plot(self, data_loader, probability_range=0.95):
         if self.device != "cpu":
             print('Use cpu for faster speed!')
+
+        all_data = data_loader.get_all_data()  # [15632, 17]
+        data = all_data[:, :-1].to(self.device)  # [15632, 16]
+        label = all_data[:, -1].to(self.device)  # [15632, 1]
 
         cdf_high = 1 - (1 - probability_range) / 2
         cdf_low = (1 - probability_range) / 2
 
         total_length = data.shape[0]  # 15632
         batch_size = 1
-        device = data.device
+        device = self.device
 
         test_batch = data.unsqueeze(0)  # [1, 15632, 16]
         labels_batch = label.unsqueeze(0).squeeze(-1)  # [1, 15632]
