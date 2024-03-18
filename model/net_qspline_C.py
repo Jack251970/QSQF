@@ -308,6 +308,8 @@ class Net(nn.Module):
 
 def loss_fn(func_param, labels: Variable):  # {[256, 1], [256, 20]}, [256,]
     beta_0, gamma = func_param  # [256, 1], [256, 20]
+    labels = labels.unsqueeze(1)  # [256, 1]
+
     sigma = torch.full_like(gamma, 1.0 / gamma.shape[1], requires_grad=False)  # [256, 1], [256, 20]
 
     beta = pad(gamma, (1, 0))[:, :-1]  # [256, 20]
@@ -326,19 +328,19 @@ def loss_fn(func_param, labels: Variable):  # {[256, 1], [256, 20]}, [256,]
     knots = (df2 * beta_0).sum(dim=2) + (knots.pow(2) * beta).sum(dim=2)
     knots = pad(knots.T, (1, 0))[:, :-1]  # F(ksi_1~K)=0~max
 
-    diff = labels.view(-1, 1) - knots
+    diff = labels - knots
     alpha_l = diff > 0
     alpha_A = torch.sum(alpha_l * beta, dim=1)
     alpha_B = beta_0[:, 0] - 2 * torch.sum(alpha_l * beta * ksi, dim=1)
-    alpha_C = -labels + torch.sum(alpha_l * beta * ksi * ksi, dim=1)
+    alpha_C = -labels.squeeze() + torch.sum(alpha_l * beta * ksi * ksi, dim=1)
 
     # since A may be zero, roots can be from different methods.
     not_zero = (alpha_A != 0)
     alpha = torch.zeros_like(alpha_A)
     # since there may be numerical calculation error,#0
-    idx = (alpha_B ** 2 - 4 * alpha_A * alpha_C) < 0  # 0
+    idx = (alpha_B ** 2 - 4 * alpha_A * alpha_C) < 0  # 0 # [256,]
     diff = diff.abs()
-    index = diff == (diff.min(dim=1)[0].view(-1, 1))
+    index = diff == (diff.min(dim=1)[0].view(-1, 1))  # [256, 20]
     index[~idx, :] = False
     # index=diff.abs()<1e-4#0,1e-4 is a threshold
     # idx=index.sum(dim=1)>0#0
