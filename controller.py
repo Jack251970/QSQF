@@ -131,9 +131,6 @@ def run(params, dirs, seed=None, restore_file=None):
     test_json_path = os.path.join(dirs.model_dir, 'test_results.json')
     utils.save_dict_to_json(out, test_json_path)
 
-    # Plot figures
-    model.plot(test_set)
-
 
 if __name__ == '__main__':
     args = parser.parse_args()
