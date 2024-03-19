@@ -204,7 +204,7 @@ def loss_fn(func_param, labels: torch.Tensor):  # {[256, 1], [256, 20]}, [256,]
     alpha[not_zero] = (-alpha_B[not_zero] + torch.sqrt(delta)) / (2 * alpha_A[not_zero])
 
     # formula for CRPS is here!
-    gamma_0 = -torch.ones_like(labels)
+    gamma_0 = -torch.zeros_like(labels)
     crps_1 = (gamma_0 - labels) * (1 - 2 * alpha)
     crps_2 = beta_0[:, 0] * (1 / 3 - alpha.pow(2))
     crps_3 = torch.sum(beta / 6 * (1 - ksi).pow(4), dim=1)
